@@ -4,57 +4,59 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Http\Client\ConnectionException; // Import untuk menangani error koneksi
 
 class StrokePredictionController extends Controller
 {
+    /**
+     * Metode untuk menampilkan halaman form.
+     * Sesuai dengan: Route::get('/', [StrokePredictionController::class, 'showForm']);
+     */
     public function showForm()
     {
-        return view('predict');
+        return view('prediction_form');
     }
 
+    /**
+     * Metode untuk memproses data form dan memanggil API.
+     * NAMA METODE DISESUAIKAN menjadi 'predict'
+     * Sesuai dengan: Route::post('/predict', [StrokePredictionController::class, 'predict']);
+     */
     public function predict(Request $request)
     {
-        $validated = $request->validate([
+        // Validasi input dari form
+        $validatedData = $request->validate([
+            'age' => 'required|numeric',
+            'hypertension' => 'required|integer',
+            'heart_disease' => 'required|integer',
+            'avg_glucose_level' => 'required|numeric',
+            'bmi' => 'required|numeric',
             'gender' => 'required|string',
-            'age' => 'required|numeric|min:0',
-            'hypertension' => 'required|integer|in:0,1',
-            'heart_disease' => 'required|integer|in:0,1',
             'ever_married' => 'required|string',
             'work_type' => 'required|string',
-            'residence_type' => 'required|string',
-            'avg_glucose_level' => 'required|numeric|min:0',
-            'bmi' => 'required|numeric|min:0',
+            'Residence_type' => 'required|string',
             'smoking_status' => 'required|string',
         ]);
-        
-        // ===================================================================
-        // PENTING: Konversi tipe data string dari form menjadi tipe data yang benar
-        // ===================================================================
-        $validated['age'] = (float)$validated['age'];
-        $validated['hypertension'] = (int)$validated['hypertension'];
-        $validated['heart_disease'] = (int)$validated['heart_disease'];
-        $validated['avg_glucose_level'] = (float)$validated['avg_glucose_level'];
-        $validated['bmi'] = (float)$validated['bmi'];
-        // ===================================================================
-        
-        // try {
-            // Kirim POST request ke API Flask dengan data yang sudah benar
-            $response = Http::asJson()->post('http://127.0.0.1:5000/predict', $validated);
-            Log::info($response);
 
-            if ($response->successful()) {
-                $result = $response->json();
-                return view('predict', ['result' => $result, 'inputs' => $request->all()]);
-            } else {
-                $errorBody = $response->json();
-                $errorMessage = $errorBody['details'] ?? ($errorBody['error'] ?? 'Terjadi error tidak dikenal dari API.');
-                return back()->with('error', 'Gagal mendapatkan prediksi dari API: ' . $errorMessage)->withInput();
-            }
+        try {
+            // Kirim request POST ke API Python Anda
+            $response = Http::post('http://127.0.0.1:5000/predict', $validatedData);
 
-        // } catch (ConnectionException $e) {
-        //     return back()->with('error', 'Tidak dapat terhubung ke server prediksi. Pastikan server API Python sudah berjalan.')->withInput();
-        // }
+            // Kirim kembali hasil dan input lama ke view
+            return view('prediction_form', [
+                'result' => $response->json(),
+                'inputs' => $validatedData
+            ]);
+
+        } catch (ConnectionException $e) {
+            // Tangani error jika API Python tidak berjalan atau tidak bisa dihubungi
+            $errorResult = [
+                'detail' => 'Tidak dapat terhubung ke server prediksi. Pastikan API Python sedang berjalan.'
+            ];
+            return view('prediction_form', [
+                'result' => $errorResult,
+                'inputs' => $validatedData
+            ]);
+        }
     }
 }
